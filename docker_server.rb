@@ -3,24 +3,26 @@ require 'socket'
 require 'fileutils'
 class DockerServer
 
-  DOCKER_DIR = "/home/tfunger/ruby/docker"
-  PORT = 3000
+  DOCKER_DIR = ENV["DOCKER_SERVER_DIR"]
+  PORT = ENV["DOCKER_SERVER_PORT"]
   
   def start
     server = TCPServer.open(PORT)
     loop {
       Thread.new(server.accept) do |client|
-        code = client.gets("\000").chomp("\n\x00")
-        tests = client.gets("\000").chomp("\n\x00")
-        user_id = client.gets("\000").chomp("\n\x00")
-        unless !code.empty? && !tests.empty? && !user_id.empty?
+        code = client.gets("\000").chomp("\u0000")
+       	p code 
+	test_code = client.gets("\000").chomp("\u0000")
+        p test_code
+	user_id = client.gets("\000").chomp("\u0000")
+        p user_id
+	unless !code.empty? && !test_code.empty? && !user_id.empty?
           puts "NOT ACCEPTED"
           client.write("400")
           client.close
         end
         puts "OK"
-        client.write("202")
-        puts build_and_run_container(code,tests,user_id)
+        client.write(build_and_run_container(code,test_code,user_id))
         client.close
       end
     }
@@ -29,8 +31,9 @@ class DockerServer
   # Executes the build.sh script at the top of the docker directory
   def build_and_run_container(code,test_code,user_id)
     puts "Building and running docker container"
-    formatted_code = format_code(code,test_code).chomp
-    command = ["#{DOCKER_DIR}/build.sh","\"#{formatted_code}\"",user_id].join(" ").chomp
+    formatted_code = format_code(code,test_code)
+    p formatted_code
+    command = ["#{DOCKER_DIR}/build.sh",%Q[\"#{formatted_code}\"],user_id].join(" ").chomp
     %x[#{command}]
   end
   
@@ -38,7 +41,7 @@ class DockerServer
   def format_code(code,test)
     <<-EOS
 #!/usr/bin/env ruby
-require 'minitest/autorun'
+require \'minitest/autorun\'
   
 #{code}
 
